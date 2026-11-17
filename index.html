@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBER BLASTAR E-X-E</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: #020205;
+            color: #00ffff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-wrapper {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 3px solid #00ffff;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
+            background-color: #000000;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 2, 5, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            text-align: center;
+            padding: 20px;
+            transition: opacity 0.3s ease;
+        }
+
+        .hidden {
+            display: none !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 3.8rem;
+            color: #ff0055;
+            text-shadow: 0 0 10px #ff0055, 0 0 25px #ff0055;
+            margin-bottom: 15px;
+            letter-spacing: 4px;
+            font-weight: 900;
+        }
+
+        #gameover-screen h1 {
+            color: #ff2222;
+            text-shadow: 0 0 10px #ff2222, 0 0 25px #ff2222;
+        }
+
+        p {
+            font-size: 1.2rem;
+            color: #00ffaa;
+            margin-bottom: 35px;
+            max-width: 550px;
+            line-height: 1.5;
+            text-shadow: 0 0 5px rgba(0, 255, 170, 0.5);
+        }
+
+        .btn-launch {
+            background: rgba(0, 255, 255, 0.05);
+            border: 3px solid #00ffff;
+            color: #00ffff;
+            padding: 18px 45px;
+            font-size: 1.5rem;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            text-shadow: 0 0 5px #00ffff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn-launch:hover {
+            background: #00ffff;
+            color: #000000;
+            box-shadow: 0 0 35px #00ffff;
+            transform: scale(1.05);
+        }
+
+        .hud-display {
+            position: absolute;
+            top: 25px;
+            left: 30px;
+            right: 30px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .hud-label {
+            font-size: 1.6rem;
+            font-weight: bold;
+            text-shadow: 0 0 8px #00ffff;
+            letter-spacing: 1px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px 15px;
+            border-left: 3px solid #00ffff;
+        }
+        
+        .score { color: #00ffff; border-left-color: #00ffff; }
+        .shield-hud { border-left-color: #00ffaa; }
+        #ui-shield { color: #00ffaa; }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <!-- Menu Interfaces -->
+    <div id="start-screen" class="screen-overlay">
+        <h1 id="theme-title">CYBER BLASTAR</h1>
+        <p id="theme-tagline">Neutralize core system vulnerabilities before they compromise the network perimeter.</p>
+        <button id="btn-boot" class="btn-launch">BOOT SYSTEMS</button>
+    </div>
+
+    <div id="gameover-screen" class="screen-overlay hidden">
+        <h1>CRITICAL BREACH</h1>
+        <p>The core firewall architecture was compromised. System override failed.</p>
+        <button id="btn-reboot" class="btn-launch">REBOOT FIRMWARE</button>
+    </div>
+
+    <!-- Real-Time Metrics Overlay -->
+    <div class="hud-display">
+        <div class="hud-label score">SCORE: <span id="ui-score">0</span></div>
+        <div class="hud-label shield-hud">SHIELD: <span id="ui-shield">100%</span></div>
+    </div>
+</div>
+
+<script>
+    // Fail-Safe Setup Layer
+    window.addEventListener("load", () => {
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        
+        const startScreen = document.getElementById("start-screen");
+        const gameoverScreen = document.getElementById("gameover-screen");
+        const uiScore = document.getElementById("ui-score");
+        const uiShield = document.getElementById("ui-shield");
+        const bootBtn = document.getElementById("btn-boot");
+        const rebootBtn = document.getElementById("btn-reboot");
+
+        // Game Configuration
+        let gameActive = false;
+        let score = 0;
+        let shield = 100;
+        let keys = {};
+        let player, lasers, enemies, particles, starfield;
+
+        // Populate Starfield Engine
+        function createStarfield() {
+            let stars = [];
+            for (let i = 0; i < 80; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2 + 0.5,
+                    speed: Math.random() * 1.5 + 0.5
+                });
+            }
+            return stars;
+        }
+        starfield = createStarfield();
+
+        // Safe Click Handlers
+        bootBtn.onclick = (e) => {
+            e.stopPropagation();
+            startScreen.classList.add("hidden");
+            initGame();
+        };
+
+        rebootBtn.onclick = (e) => {
+            e.stopPropagation();
+            gameoverScreen.classList.add("hidden");
+            initGame();
+        };
+
+        // Window Control Intercept
+        window.addEventListener("keydown", (e) => {
+            if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+                e.preventDefault(); 
+            }
+            keys[e.code] = true;
+        });
+        window.addEventListener("keyup", (e) => keys[e.code] = false);
+
+        function initGame() {
+            score = 0;
+            shield = 100;
+            uiScore.innerText = score;
+            uiShield.innerText = "100%";
+            uiShield.style.color = "#00ffaa";
+            
+            player = {
+                x: canvas.width / 2 - 20,
+                y: canvas.height - 80,
+                width: 44,
+                height: 34,
+                speed: 8,
+                cooldown: 0
+            };
+            
+            lasers = [];
+            enemies = [];
+            particles = [];
+            gameActive = true;
+            
+            // Boot Core Loop Engine
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            // Background Star Updates (Always run even on menu screens)
+            starfield.forEach(star => {
+                star.y += star.speed;
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+            });
+
+            if (!gameActive) return;
+
+            // Player Kinematics
+            if ((keys["ArrowLeft"] || keys["KeyA"]) && player.x > 0) {
+                player.x -= player.speed;
+            }
+            if ((keys["ArrowRight"] || keys["KeyD"]) && player.x < canvas.width - player.width) {
+                player.x += player.speed;
+            }
+            
+            // Direct Blaster Fire Processing
+            if (keys["Space"] && player.cooldown <= 0) {
+                lasers.push({ 
+                    x: player.x + player.width / 2 - 2, 
+                    y: player.y, 
+                    width: 4, 
+                    height: 18, 
+                    speed: 11 
+                });
+                player.cooldown = 10; // Rapid Fire Cycle
+            }
+            if (player.cooldown > 0) player.cooldown--;
+
+            // Weapon Pipeline
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                lasers[i].y -= lasers[i].speed;
+                if (lasers[i].y < -20) lasers.splice(i, 1);
+            }
+
+            // Entity Pipeline (Threat Allocation)
+            if (Math.random() < 0.04) {
+                enemies.push({
+                    x: Math.random() * (canvas.width - 32),
+                    y: -40,
+                    width: 34,
+                    height: 34,
+                    speed: 2.5 + Math.random() * 3.5
+                });
+            }
+
+            // Threat Engine Calculations
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                enemies[i].y += enemies[i].speed;
+
+                if (enemies[i].y > canvas.height) {
+                    enemies.splice(i, 1);
+                    takeDamage(20);
+                    continue;
+                }
+
+                if (checkCollision(enemies[i], player)) {
+                    createExplosion(enemies[i].x + 17, enemies[i].y + 17, "#ff2222");
+                    enemies.splice(i, 1);
+                    takeDamage(15);
+                    continue;
+                }
+
+                for (let j = lasers.length - 1; j >= 0; j--) {
+                    if (checkCollision(lasers[j], enemies[i])) {
+                        createExplosion(enemies[i].x + 17, enemies[i].y + 17, "#00ffaa");
+                        enemies.splice(i, 1);
+                        lasers.splice(j, 1);
